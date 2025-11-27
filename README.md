@@ -88,4 +88,4 @@ python main.py
 
 ---
 
-© 2023 Adaptive Glass Image Processor
+@Wuzhen
