@@ -60,9 +60,9 @@ class WatermarkSettings:
 
 @dataclass
 class ProcessingSettings:
-    target_ratio: Ratio = Ratio.R_4_3
+    target_ratio: Ratio = Ratio.R_16_9
     blur_mode: BlurMode = BlurMode.STANDARD
-    blur_radius: int = 15
+    blur_radius: int = 35
     blur_brightness: int = 0 # -100 to 100 (0 is neutral)
     border_style: BorderStyle = BorderStyle.ROUNDED
     border_color: str = "black" # white, black

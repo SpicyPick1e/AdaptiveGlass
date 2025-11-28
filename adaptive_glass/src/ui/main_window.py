@@ -1,6 +1,6 @@
 import os
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QSplitter, 
-                             QFileDialog, QMessageBox, QToolBar, QStatusBar, QSizePolicy)
+                             QFileDialog, QMessageBox, QToolBar, QStatusBar, QSizePolicy, QLabel)
 from PyQt6.QtGui import QAction, QIcon, QDragEnterEvent, QDropEvent
 from PyQt6.QtCore import Qt
 
@@ -13,7 +13,7 @@ from src.ui.styles import DARK_THEME
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("自适应图片比例处理软件")
+        self.setWindowTitle("自适应图片比例处理软件 - 开源共享 请勿售卖")
         self.resize(1200, 800)
         self.setStyleSheet(DARK_THEME)
         
@@ -58,6 +58,11 @@ class MainWindow(QMainWindow):
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("就绪")
+        
+        # Author Label
+        author_label = QLabel("@WuZ 2025")
+        author_label.setStyleSheet("color: #666666; margin-right: 10px; font-weight: bold;")
+        self.status_bar.addPermanentWidget(author_label)
 
     def setup_actions(self):
         # Toolbar

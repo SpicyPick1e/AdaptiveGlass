@@ -114,62 +114,90 @@ class WatermarkEngine:
         # If text is empty or contains placeholders, we need EXIF
         if not text or ("{" in text and "}" in text):
             if not exif_data:
-                # Try to get from current image if not provided (fallback)
                 exif_data = self.get_exif_data(base_image)
             
-            if not text:
-                # Default template if text is empty
-                # Construct a default string from available EXIF
-                # New Logic: We want to separate Model and Info for rich rendering
-                pass # Logic handled below
-            else:
-                # Format template
+            if text:
                 text = self._format_template(text, exif_data)
         
-        # Debug: Print EXIF and Text
-        # print(f"[Watermark Debug] EXIF Data: {exif_data}")
-        # print(f"[Watermark Debug] Final Text: {text}")
-
         # Load font
         font_path_to_use = self.font_path
         if settings.font_path and os.path.exists(settings.font_path):
             font_path_to_use = settings.font_path
             
-        # Calculate Base Font Size
+        # --- 1. Advanced Layout Calculation ---
+        
+        # Default layout values
+        target_w, target_h = base_image.size
+        content_rect = (0, 0, target_w, target_h)
+        
+        border_top = 0
+        border_bottom = 0
+        border_left = 0
+        border_right = 0
+        
+        if layout_info:
+            target_w, target_h = layout_info.get('target_size', base_image.size)
+            content_rect = layout_info.get('content_rect', (0, 0, target_w, target_h))
+            cx, cy, cw, ch = content_rect
+            
+            border_top = cy
+            border_bottom = target_h - (cy + ch)
+            border_left = cx
+            border_right = target_w - (cx + cw)
+
+        # --- 2. Adaptive Font Size Calculation ---
+        
         base_font_size = settings.font_size
         
-        # Adaptive Logic
-        bottom_space = 0
-        if layout_info and settings.auto_size:
-            target_w, target_h = layout_info['target_size']
-            cx, cy, cw, ch = layout_info['content_rect']
+        if settings.auto_size:
+            pos = settings.position
             
-            # Calculate space below content
-            bottom_space = target_h - (cy + ch)
+            # Determine if we are in a vertical zone (Top/Bottom) or horizontal/side zone
+            is_vertical_zone = "top" in pos or "bottom" in pos
             
-            if bottom_space > 20: # If there is a meaningful bottom border
-                # Set font size to ~35% of bottom space
-                base_font_size = int(bottom_space * 0.35)
-                # Ensure minimum size
-                base_font_size = max(12, base_font_size)
+            if is_vertical_zone:
+                # Use the larger of top/bottom borders as reference if they exist
+                # This ensures consistency if top and bottom borders are similar
+                ref_border_h = max(border_top, border_bottom)
+                
+                if ref_border_h > 20:
+                    # We have a meaningful border
+                    base_font_size = int(ref_border_h * 0.35)
+                else:
+                    # No border, use width-based fallback
+                    base_font_size = int(target_w * 0.03)
             else:
-                # No border or very thin border
-                # Set font size relative to width (e.g. 3%)
-                base_font_size = int(target_w * 0.03)
-                base_font_size = max(12, base_font_size)
+                # Side zones (center_left, center_right) or center
+                # Check if we have side borders
+                ref_border_w = max(border_left, border_right)
+                
+                if "left" in pos or "right" in pos:
+                    if ref_border_w > 20:
+                         # Fit within side border width (conservative)
+                         # Assuming text might be long, we limit size based on width but also height to avoid huge text
+                         base_font_size = int(ref_border_w * 0.15) # Heuristic
+                         # Also clamp by total height to avoid being too huge
+                         base_font_size = min(base_font_size, int(target_h * 0.05))
+                    else:
+                        base_font_size = int(target_w * 0.03)
+                else:
+                    # Center
+                    base_font_size = int(target_w * 0.03)
+            
+            # Minimum size
+            base_font_size = max(12, base_font_size)
         
         # Apply Manual Size Scale
         base_font_size = int(base_font_size * settings.size_scale)
-        base_font_size = max(10, base_font_size) # Absolute minimum
+        base_font_size = max(10, base_font_size)
 
-        # Prepare Text Parts
+        # --- 3. Text Preparation ---
         model_text = ""
         info_text = ""
         
-        # Get EXIF info first
         exif_model = str(exif_data.get('Model', ''))
         if not exif_model:
-            exif_model = str(exif_data.get('Make', '')) # Removed 'Camera' default
+            exif_model = str(exif_data.get('Make', ''))
         
         info_parts = []
         iso = exif_data.get('ISOSpeedRatings', '')
@@ -182,164 +210,154 @@ class WatermarkEngine:
         if focal: info_parts.append(f"{focal}mm")
         exif_info = "  ".join(info_parts)
 
-        # Determine final text based on mode
         if settings.text_mode == WatermarkMode.REPLACE:
-            # Replace: Only show custom text (as Model part), no info
             model_text = text if text else "Custom Text"
-            info_text = ""
-            
         elif settings.text_mode == WatermarkMode.FALLBACK:
-            # Fallback: Show EXIF if available, else Custom Text
-            has_exif = bool(exif_model)
-            if has_exif:
+            if exif_model:
                 model_text = exif_model
                 info_text = exif_info
             else:
                 model_text = text if text else "No EXIF"
-                info_text = ""
-                
         elif settings.text_mode == WatermarkMode.APPEND:
-            # Append: Show EXIF, and Custom Text.
-            # Smart Fallback: If no EXIF, behave like Replace (show custom text as Model)
-            
-            has_exif = bool(exif_model)
-            
-            if has_exif:
+            if exif_model:
                 model_text = exif_model
                 info_text = exif_info
                 if text:
-                    if info_text:
-                        info_text += f"  |  {text}"
-                    else:
-                        info_text = text
+                    if info_text: info_text += f"  |  {text}"
+                    else: info_text = text
             else:
-                # No EXIF: Fallback to showing custom text as Model (Large)
                 model_text = text
-                info_text = ""
         
-        # If both are empty, return original image
         if not model_text and not info_text:
             return image
 
-        # Check for Chinese characters and fallback font
+        # Chinese Font Fallback
         def has_chinese(s):
-            for char in s:
-                if '\u4e00' <= char <= '\u9fff':
-                    return True
-            return False
+            return any('\u4e00' <= char <= '\u9fff' for char in s)
 
         current_font_path = font_path_to_use
         if has_chinese(model_text) or has_chinese(info_text):
-            # If current font is likely not supporting Chinese (e.g. the default English one)
-            # We switch to Microsoft YaHei
             if "SMILETSANS" in current_font_path.upper() or "ARIAL" in current_font_path.upper():
                 if os.name == 'nt':
                     msyh = "C:\\Windows\\Fonts\\msyh.ttc"
                     simhei = "C:\\Windows\\Fonts\\simhei.ttf"
-                    if os.path.exists(msyh):
-                        current_font_path = msyh
-                    elif os.path.exists(simhei):
-                        current_font_path = simhei
+                    if os.path.exists(msyh): current_font_path = msyh
+                    elif os.path.exists(simhei): current_font_path = simhei
 
         # Load Fonts
         try:
             font_model = ImageFont.truetype(current_font_path, base_font_size)
-        except IOError:
-            font_model = ImageFont.load_default()
-            
-        try:
-            # Info font is smaller (e.g. 70%)
             info_font_size = int(base_font_size * 0.7)
             font_info = ImageFont.truetype(current_font_path, info_font_size)
         except IOError:
+            font_model = ImageFont.load_default()
             font_info = ImageFont.load_default()
 
         # Measure Text
         draw_temp = ImageDraw.Draw(Image.new('RGBA', (1, 1)))
         
-        w_model = 0
-        h_model = 0
-        if model_text:
-            bbox_model = draw_temp.textbbox((0, 0), model_text, font=font_model)
-            w_model = bbox_model[2] - bbox_model[0]
-            h_model = bbox_model[3] - bbox_model[1]
-        
-        w_info = 0
-        h_info = 0
-        if info_text:
-            bbox_info = draw_temp.textbbox((0, 0), info_text, font=font_info)
-            w_info = bbox_info[2] - bbox_info[0]
-            h_info = bbox_info[3] - bbox_info[1]
+        def get_size(txt, font):
+            if not txt: return 0, 0
+            bbox = draw_temp.textbbox((0, 0), txt, font=font)
+            return bbox[2] - bbox[0], bbox[3] - bbox[1]
             
-        # Layout Calculation
-        gap = int(base_font_size * 0.8) if (model_text and info_text) else 0 # Only add gap if both exist
+        w_model, h_model = get_size(model_text, font_model)
+        w_info, h_info = get_size(info_text, font_info)
+            
+        gap = int(base_font_size * 0.8) if (model_text and info_text) else 0
         total_w = w_model + gap + w_info
         max_h = max(h_model, h_info)
         
-        # Create a transparent layer for the watermark
+        # --- 4. Smart Positioning & Alignment ---
+        
+        # Create layer
         txt_layer = Image.new('RGBA', base_image.size, (255, 255, 255, 0))
         draw = ImageDraw.Draw(txt_layer)
         
-        w, h = base_image.size
+        pos = settings.position
         padding = 20
-        
-        # Position
         x, y = 0, 0
         
-        # Parse position string
-        pos = settings.position
-        
-        # Vertical
+        # Smart Y Calculation
         if "top" in pos:
-            y = padding
-        elif "bottom" in pos:
-            # Adaptive Bottom Logic
-            if pos == "bottom_center" and settings.auto_size and layout_info and bottom_space > 20:
-                 cx, cy, cw, ch = layout_info['content_rect']
-                 center_y_of_space = (cy + ch) + (bottom_space / 2)
-                 y = int(center_y_of_space - (max_h / 2))
-                 y = min(y, h - max_h - 5)
+            # Top Zone
+            if border_top > 20:
+                # Center vertically in top border
+                center_y = border_top / 2
+                y = int(center_y - (max_h / 2))
             else:
-                y = h - max_h - padding
-        else: # center or center_left/right
-            y = (h - max_h) // 2
-            
-        # Horizontal
+                y = padding
+        elif "bottom" in pos:
+            # Bottom Zone
+            if border_bottom > 20:
+                # Center vertically in bottom border
+                # Bottom border starts at (cy + ch)
+                start_y = content_rect[1] + content_rect[3]
+                center_y = start_y + (border_bottom / 2)
+                y = int(center_y - (max_h / 2))
+            else:
+                y = target_h - max_h - padding
+        else:
+            # Center Y
+            y = (target_h - max_h) // 2
+
+        # Smart X Calculation
         if "left" in pos:
-            x = padding
+            if "center" in pos: # center_left
+                if border_left > 20:
+                    # Center horizontally in left border
+                    center_x = border_left / 2
+                    x = int(center_x - (total_w / 2))
+                else:
+                    x = padding
+            else: # top_left, bottom_left
+                x = padding
         elif "right" in pos:
-            x = w - total_w - padding
-        else: # center
-            x = (w - total_w) // 2
+            if "center" in pos: # center_right
+                if border_right > 20:
+                    # Center horizontally in right border
+                    # Right border starts at (cx + cw)
+                    start_x = content_rect[0] + content_rect[2]
+                    center_x = start_x + (border_right / 2)
+                    x = int(center_x - (total_w / 2))
+                else:
+                    x = target_w - total_w - padding
+            else: # top_right, bottom_right
+                x = target_w - total_w - padding
+        else:
+            # Center X (top_center, bottom_center, center)
+            x = (target_w - total_w) // 2
             
-        print(f"[Watermark Debug] Font Path: {font_path_to_use}, Exists: {os.path.exists(font_path_to_use)}")
-            
-        # Draw text
-        # Color with opacity
+        # --- 5. Fixed Alignment (Bottom Baseline) ---
+        
+        # Colors
         base_color = (255, 255, 255) if settings.text_color == "white" else (0, 0, 0)
         color = (*base_color, int(255 * (settings.opacity / 100)))
-        
-        # Shadow
         shadow_rgb = (0, 0, 0) if settings.text_color == "white" else (255, 255, 255)
         shadow_color = (*shadow_rgb, int(128 * (settings.opacity / 100)))
         
-        # Draw Model Name
+        # Draw Model
         if model_text:
-            y_model = y + (max_h - h_model) // 2
+            # Always align bottom (Baseline)
+            # The text block starts at y and has height max_h.
+            # We want the bottom of the text to be at y + max_h.
+            # So the top of the text should be at (y + max_h) - h_text.
+            
+            y_model = y + (max_h - h_model)
+
             draw.text((x+1, y_model+1), model_text, font=font_model, fill=shadow_color)
             draw.text((x, y_model), model_text, font=font_model, fill=color)
-        
-        # Info
+            
+        # Draw Info
         if info_text:
             x_info = x + w_model + gap
-            y_info = y + (max_h - h_info) // 2
-            # Fine tune y_info to align baselines roughly
-            if model_text:
-                y_info += int(h_model * 0.1) 
+            
+            # Always align bottom (Baseline)
+            y_info = y + (max_h - h_info)
             
             draw.text((x_info+1, y_info+1), info_text, font=font_info, fill=shadow_color)
             draw.text((x_info, y_info), info_text, font=font_info, fill=color)
-        
+            
         # Composite
         if base_image.mode != 'RGBA':
             base_image = base_image.convert('RGBA')

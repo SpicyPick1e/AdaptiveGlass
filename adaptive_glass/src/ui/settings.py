@@ -50,14 +50,14 @@ class SettingsPanel(QWidget):
         ratio_group = QGroupBox("目标比例")
         ratio_layout = QFormLayout()
         self.ratio_combo = QComboBox()
-        self.ratio_combo.addItem("1:1 (Instagram)", Ratio.R_1_1)
-        self.ratio_combo.addItem("4:3", Ratio.R_4_3)
-        self.ratio_combo.addItem("3:2 (Full Frame)", Ratio.R_3_2)
-        self.ratio_combo.addItem("16:9 (Youtube)", Ratio.R_16_9)
-        self.ratio_combo.addItem("9:16 (TikTok)", Ratio.R_9_16)
-        self.ratio_combo.addItem("2.35:1 (Cinema)", Ratio.R_2_35_1)
+        self.ratio_combo.addItem("1:1 (Instagram/朋友圈)", Ratio.R_1_1)
+        self.ratio_combo.addItem("4:3 (小红书)", Ratio.R_4_3)
+        self.ratio_combo.addItem("3:2 (全画幅)", Ratio.R_3_2)
+        self.ratio_combo.addItem("16:9 (Bilibili/YouTube)", Ratio.R_16_9)
+        self.ratio_combo.addItem("9:16 (抖音/tiktok)", Ratio.R_9_16)
+        self.ratio_combo.addItem("2.35:1 (电影宽银幕)", Ratio.R_2_35_1)
         self.ratio_combo.addItem("原始比例", Ratio.ORIGINAL)
-        self.ratio_combo.setCurrentIndex(1) # Default 4:3
+        self.ratio_combo.setCurrentIndex(3) # Default 16:9
         self.ratio_combo.currentIndexChanged.connect(self.update_settings)
         ratio_layout.addRow("选择比例:", self.ratio_combo)
         ratio_group.setLayout(ratio_layout)
@@ -79,7 +79,7 @@ class SettingsPanel(QWidget):
         blur_layout = QFormLayout()
         self.blur_slider = QSlider(Qt.Orientation.Horizontal)
         self.blur_slider.setRange(0, 50)
-        self.blur_slider.setValue(15)
+        self.blur_slider.setValue(35)
         self.blur_slider.valueChanged.connect(self.update_settings)
         blur_layout.addRow("模糊强度:", self.blur_slider)
         
@@ -107,7 +107,7 @@ class SettingsPanel(QWidget):
             spinbox = QSpinBox()
             spinbox.setRange(min_val, max_val)
             spinbox.setValue(default_val)
-            spinbox.setFixedWidth(60)
+            spinbox.setFixedWidth(70)
             
             # Sync slider and spinbox
             slider.valueChanged.connect(spinbox.setValue)
@@ -257,7 +257,7 @@ class SettingsPanel(QWidget):
         self.font_combo.currentIndexChanged.connect(self.update_settings)
 
         # Size Scale Slider (Replaces Manual Size)
-        self.wm_size_scale_slider, self.wm_size_scale_spin = create_slider_with_input(50, 200, 100, wm_layout, "字体大小调整 (%):")
+        self.wm_size_scale_slider, self.wm_size_scale_spin = create_slider_with_input(25, 250, 100, wm_layout, "字体大小调整 (%):")
         self.wm_size_scale_slider.valueChanged.connect(self.update_settings)
 
         # Remove old manual size slider code
