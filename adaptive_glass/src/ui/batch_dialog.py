@@ -24,53 +24,73 @@ class BatchWorker(QThread):
         self.running = True
 
     def run(self):
+        import concurrent.futures
+        
         total = len(self.file_paths)
-        for i, path in enumerate(self.file_paths):
-            if not self.running:
-                break
-                
-            try:
-                # Load
-                img = self.processor.load_image(path)
-                if not img:
-                    continue
-                    
-                # Process
-                processed, layout_info = self.processor.process(img, self.settings)
-                
-                # Watermark
-                if self.settings.watermark.enabled:
-                    # Fix: Extract EXIF from ORIGINAL image
-                    exif_data = self.watermarker.get_exif_data(img)
-                    processed = self.watermarker.render_watermark(processed, self.settings.watermark, exif_data, layout_info)
-                
-                # Save
-                filename = os.path.basename(path)
-                name, ext = os.path.splitext(filename)
-                
-                # Determine output format and extension
-                save_ext = ext
-                if self.out_format == "PNG":
-                    save_ext = ".png"
-                elif self.out_format == "JPG":
-                    save_ext = ".jpg"
-                
-                save_name = f"{name}{self.suffix}{save_ext}"
-                save_path = os.path.join(self.output_dir, save_name)
-                
-                if save_ext.lower() in ['.jpg', '.jpeg']:
-                    if processed.mode == 'RGBA':
-                        processed = processed.convert('RGB')
-                    processed.save(save_path, quality=self.settings.export_quality)
-                else:
-                    processed.save(save_path)
-                
-            except Exception as e:
-                print(f"Error processing {path}: {e}")
+        completed = 0
+        
+        # Determine max workers (CPU count)
+        max_workers = os.cpu_count() or 4
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            future_to_file = {executor.submit(self.process_file, path): path for path in self.file_paths}
             
-            self.progress.emit(int((i + 1) / total * 100))
+            for future in concurrent.futures.as_completed(future_to_file):
+                if not self.running:
+                    executor.shutdown(wait=False)
+                    break
+                    
+                path = future_to_file[future]
+                try:
+                    future.result()
+                except Exception as e:
+                    print(f"Error processing {path}: {e}")
+                
+                completed += 1
+                self.progress.emit(int(completed / total * 100))
             
         self.finished.emit()
+
+    def process_file(self, path):
+        # Load
+        img = self.processor.load_image(path)
+        if not img:
+            return
+            
+        # Process
+        processed, layout_info = self.processor.process(img, self.settings)
+        
+        # Watermark
+        if self.settings.watermark.enabled:
+            # Fix: Extract EXIF from ORIGINAL image
+            exif_data = self.watermarker.get_exif_data(img)
+            processed = self.watermarker.render_watermark(processed, self.settings.watermark, exif_data, layout_info)
+        
+        # Save
+        filename = os.path.basename(path)
+        name, ext = os.path.splitext(filename)
+        
+        # Determine output format and extension
+        save_ext = ext
+        if self.out_format == "PNG":
+            save_ext = ".png"
+        elif self.out_format == "JPG":
+            save_ext = ".jpg"
+        
+        save_name = f"{name}{self.suffix}{save_ext}"
+        save_path = os.path.join(self.output_dir, save_name)
+        
+        if save_ext.lower() in ['.jpg', '.jpeg']:
+            if processed.mode == 'RGBA':
+                processed = processed.convert('RGB')
+            processed.save(save_path, quality=self.settings.export_quality)
+        else:
+            processed.save(save_path)
+            
+        # Explicit cleanup
+        del img
+        del processed
 
     def stop(self):
         self.running = False

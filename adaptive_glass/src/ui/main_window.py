@@ -1,6 +1,6 @@
 import os
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QSplitter, 
-                             QFileDialog, QMessageBox, QToolBar, QStatusBar)
+                             QFileDialog, QMessageBox, QToolBar, QStatusBar, QSizePolicy)
 from PyQt6.QtGui import QAction, QIcon, QDragEnterEvent, QDropEvent
 from PyQt6.QtCore import Qt
 
@@ -75,6 +75,27 @@ class MainWindow(QMainWindow):
         batch_action = QAction("批量处理", self)
         batch_action.triggered.connect(self.open_batch_dialog)
         toolbar.addAction(batch_action)
+
+        # Spacer
+        empty = QWidget()
+        empty.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        toolbar.addWidget(empty)
+
+        # Theme Toggle
+        self.theme_action = QAction("切换主题", self)
+        self.theme_action.triggered.connect(self.toggle_theme)
+        toolbar.addAction(self.theme_action)
+        
+        self.is_dark_theme = True
+
+    def toggle_theme(self):
+        from src.ui.styles import DARK_THEME, LIGHT_THEME
+        if self.is_dark_theme:
+            self.setStyleSheet(LIGHT_THEME)
+            self.is_dark_theme = False
+        else:
+            self.setStyleSheet(DARK_THEME)
+            self.is_dark_theme = True
 
     def open_batch_dialog(self):
         dialog = BatchDialog(self.settings_panel.settings, self)

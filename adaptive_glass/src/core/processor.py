@@ -1,5 +1,7 @@
 from PIL import Image, ImageFilter, ImageOps, ImageDraw
+import os
 from .utils import ProcessingSettings, Ratio, BorderStyle, BlurMode
+from .watermark import WatermarkEngine
 
 class ImageProcessor:
     def load_image(self, path: str) -> Image.Image:
@@ -77,6 +79,18 @@ class ImageProcessor:
 
         final_image.paste(resized_img, (x, y), resized_img if resized_img.mode == 'RGBA' else None)
         
+        # 6. Draw Watermark
+        if settings.watermark.enabled:
+            engine = WatermarkEngine()
+            exif_data = engine.get_exif_data(image)
+            
+            l_info = {
+                'target_size': (target_w, target_h),
+                'content_rect': (x, y, new_w, new_h)
+            }
+            
+            final_image = engine.render_watermark(final_image, settings.watermark, exif_data, l_info)
+
         layout_info = {
             'target_size': (target_w, target_h),
             'content_rect': (x, y, new_w, new_h),
@@ -136,6 +150,16 @@ class ImageProcessor:
         effective_radius = max(1, settings.blur_radius / downscale_factor)
         bg_small = bg_small.filter(ImageFilter.GaussianBlur(effective_radius))
         
+        # Apply Brightness Adjustment (New in V1.1)
+        if settings.blur_brightness != 0:
+            # 0 is neutral. Range -100 to 100.
+            # Map -100..100 to 0.0..2.0 multiplier? Or just use ImageEnhance.
+            from PIL import ImageEnhance
+            enhancer = ImageEnhance.Brightness(bg_small)
+            # 0 -> 1.0, 100 -> 2.0, -100 -> 0.0
+            factor = 1.0 + (settings.blur_brightness / 100.0)
+            bg_small = enhancer.enhance(factor)
+
         # Upscale back to target size
         # Use Bicubic or Lanczos for smoother upscale
         bg_final = bg_small.resize((target_w, target_h), Image.Resampling.BICUBIC)
@@ -188,3 +212,5 @@ class ImageProcessor:
             return output
             
         return image
+                
+

@@ -21,6 +21,8 @@ class Ratio(Enum):
     R_4_3 = (4, 3)
     R_16_9 = (16, 9)
     R_9_16 = (9, 16)
+    R_2_35_1 = (235, 100)
+    R_3_2 = (3, 2)
     ORIGINAL = (0, 0)
 
 class BorderStyle(Enum):
@@ -47,11 +49,12 @@ class WatermarkSettings:
     font_size: int = 20
     auto_size: bool = True
     opacity: int = 100  # 0-100
-    position: str = "bottom_center" # bottom_right, bottom_left, center, manual
+    position: str = "bottom_center" # 9-grid positions + manual
     custom_x: int = 0
     custom_y: int = 0
     font_path: str = "SMILETSANS-OBLIQUE.TTF"
     use_exif: bool = True
+    logo_path: Optional[str] = None
     logo_path: Optional[str] = None
     size_scale: float = 1.0
 
@@ -60,6 +63,7 @@ class ProcessingSettings:
     target_ratio: Ratio = Ratio.R_4_3
     blur_mode: BlurMode = BlurMode.STANDARD
     blur_radius: int = 15
+    blur_brightness: int = 0 # -100 to 100 (0 is neutral)
     border_style: BorderStyle = BorderStyle.ROUNDED
     border_color: str = "black" # white, black
     border_width: int = 0

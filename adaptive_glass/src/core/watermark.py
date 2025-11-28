@@ -286,32 +286,33 @@ class WatermarkEngine:
         # Position
         x, y = 0, 0
         
-        # Adaptive Positioning
-        if settings.position == "bottom_center" and settings.auto_size and layout_info and bottom_space > 20:
-             cx, cy, cw, ch = layout_info['content_rect']
-             center_y_of_space = (cy + ch) + (bottom_space / 2)
-             
-             x = (w - total_w) // 2
-             y = int(center_y_of_space - (max_h / 2))
-             
-             # Ensure it doesn't go off screen
-             y = min(y, h - max_h - 5)
-             
-        elif settings.position == "bottom_right":
-            x = w - total_w - padding
-            y = h - max_h - padding
-        elif settings.position == "bottom_left":
-            x = padding
-            y = h - max_h - padding
-        elif settings.position == "bottom_center":
-            x = (w - total_w) // 2
-            y = h - max_h - padding
-        elif settings.position == "center":
-            x = (w - total_w) // 2
+        # Parse position string
+        pos = settings.position
+        
+        # Vertical
+        if "top" in pos:
+            y = padding
+        elif "bottom" in pos:
+            # Adaptive Bottom Logic
+            if pos == "bottom_center" and settings.auto_size and layout_info and bottom_space > 20:
+                 cx, cy, cw, ch = layout_info['content_rect']
+                 center_y_of_space = (cy + ch) + (bottom_space / 2)
+                 y = int(center_y_of_space - (max_h / 2))
+                 y = min(y, h - max_h - 5)
+            else:
+                y = h - max_h - padding
+        else: # center or center_left/right
             y = (h - max_h) // 2
-        elif settings.position == "manual":
-            x = settings.custom_x
-            y = settings.custom_y
+            
+        # Horizontal
+        if "left" in pos:
+            x = padding
+        elif "right" in pos:
+            x = w - total_w - padding
+        else: # center
+            x = (w - total_w) // 2
+            
+        print(f"[Watermark Debug] Font Path: {font_path_to_use}, Exists: {os.path.exists(font_path_to_use)}")
             
         # Draw text
         # Color with opacity
